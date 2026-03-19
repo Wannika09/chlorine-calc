@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chlorine Solution Calculator</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0056b3">
+  
+    <script>
+        // คำสั่งลงทะเบียน Service Worker เพื่อให้ใช้งาน Offline ได้
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(reg => console.log('PWA Ready!'))
+                    .catch(err => console.log('PWA Error', err));
+            });
+        }
+    </script>
+    
+    <style>
+        :root {
+            --primary-color: #0056b3;
+            --bg-color: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e9ecef;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 700px;
+            border: 1px solid var(--border-color);
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .label-group {
+            flex: 2;
+            min-width: 250px;
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .info-icon {
+            background-color: var(--primary-color);
+            color: white;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            margin-left: 8px;
+            cursor: help;
+        }
+
+        .input-group {
+            flex: 1.5;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="number"], select {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            width: 100px;
+        }
+
+        .unit-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+
+        button {
+            padding: 10px 24px;
+            border-radius: 6px;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-clear { background-color: #007bff; color: white; }
+        .btn-calculate { background-color: #0056b3; color: white; font-weight: bold; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        #result-area {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none; /* ซ่อนไว้ก่อนคำนวณ */
+            background-color: #e7f3ff;
+            border-left: 5px solid var(--primary-color);
+        }
+
+        .disclaimer {
+            margin-top: 20px;
+            font-size: 14px;
+            color: var(--primary-color);
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="row">
+        <div class="label-group">
+            Concentration of bleach product <span class="info-icon">?</span>
+        </div>
+        <div class="input-group">
+            <input type="number" id="c1" step="0.1">
+            <span class="unit-text">sodium hypochlorite (wt %)</span>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="label-group">
+            Desired concentration of chlorine solution
+        </div>
+        <div class="input-group">
+            <input type="number" id="c2">
+            <span class="unit-text">ppm or mg/L</span>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="label-group">
+            Desired volume of chlorine solution <span class="info-icon">?</span>
+        </div>
+        <div class="input-group">
+            <input type="number" id="v2">
+            <select id="v2_unit">
+                <option value="1">litres</option>
+                <option value="0.001">millilitres</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="label-group">
+            Desired unit of measure for bleach product <span class="info-icon">?</span>
+        </div>
+        <div class="input-group">
+            <select id="out_unit" style="width: 100%;">
+                <option value="ml">millilitres</option>
+                <option value="l">litres</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="result-area"></div>
+
+    <div class="disclaimer">Disclaimer</div>
+
+    <div class="button-container">
+        <button class="btn-clear" onclick="clearFields()">Clear</button>
+        <button class="btn-calculate" onclick="calculate()">Calculate</button>
+    </div>
+</div>
+
+<script>
+    function calculate() {
+        const c1 = parseFloat(document.getElementById('c1').value);
+        const c2 = parseFloat(document.getElementById('c2').value);
+        const v2 = parseFloat(document.getElementById('v2').value);
+        const v2Unit = parseFloat(document.getElementById('v2_unit').value);
+        const outUnit = document.getElementById('out_unit').value;
+
+        if (c1 > 0 && c2 > 0 && v2 > 0) {
+            // สูตร: V1 = (C2 * V2) / (C1 * 10,000)
+            // V2 ในที่นี้ต้องแปลงเป็น Litres ก่อนเข้าสูตร
+            let volumeInLitres = v2 * v2Unit; 
+            let resultLitres = (c2 * volumeInLitres) / (c1 * 10000);
+            
+            let finalResult, unitLabel;
+            if (outUnit === 'ml') {
+                finalResult = resultLitres * 1000;
+                unitLabel = 'ml';
+            } else {
+                finalResult = resultLitres;
+                unitLabel = 'litres';
+            }
+
+            const resultDiv = document.getElementById('result-area');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `<strong>ผลการคำนวณ:</strong> ต้องใช้คลอรีนปริมาตร <u>${finalResult.toLocaleString(undefined, {maximumFractionDigits: 4})}</u> ${unitLabel}`;
+        } else {
+            alert("กรุณากรอกข้อมูลที่ถูกต้องและครบถ้วน");
+        }
+    }
+
+    function clearFields() {
+        document.getElementById('c1').value = '';
+        document.getElementById('c2').value = '';
+        document.getElementById('v2').value = '';
+        document.getElementById('result-area').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>
